@@ -4,46 +4,82 @@
 /* This testbench just instantiates the module and makes some convenient wires
    that can be driven / tested by the cocotb test.py.
 */
-module tb ();
+module FIR_Filter_tb;
 
-  // Dump the signals to a VCD file. You can view it with gtkwave.
-  initial begin
-    $dumpfile("tb.vcd");
-    $dumpvars(0, tb);
-    #1;
-  end
+    // Parameters
+    parameter DATA_WIDTH = 16;
+    parameter COEFF_WIDTH = 16;
+    parameter TAPS = 8;
 
-  // Wire up the inputs and outputs:
-  reg clk;
-  reg rst_n;
-  reg ena;
-  reg [7:0] ui_in;
-  reg [7:0] uio_in;
-  wire [7:0] uo_out;
-  wire [7:0] uio_out;
-  wire [7:0] uio_oe;
-`ifdef GL_TEST
-  wire VPWR = 1'b1;
-  wire VGND = 1'b0;
-`endif
+    // Testbench signals
+    reg clk;
+    reg rst;
+    reg valid_in;
+    reg [DATA_WIDTH-1:0] data_in;
+    wire valid_out;
+    wire [DATA_WIDTH-1:0] data_out;
 
-  // Replace tt_um_example with your module name:
-  tt_um_example user_project (
+    // DUT instantiation
+    FIR_Filter #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .COEFF_WIDTH(COEFF_WIDTH),
+        .TAPS(TAPS)
+    ) dut (
+        .clk(clk),
+        .rst(rst),
+        .valid_in(valid_in),
+        .data_in(data_in),
+        .valid_out(valid_out),
+        .data_out(data_out)
+    );
 
-      // Include power ports for the Gate Level test:
-`ifdef GL_TEST
-      .VPWR(VPWR),
-      .VGND(VGND),
-`endif
+    // Clock generation
+    initial clk = 0;
+    always #5 clk = ~clk; // 100 MHz clock
 
-      .ui_in  (ui_in),    // Dedicated inputs
-      .uo_out (uo_out),   // Dedicated outputs
-      .uio_in (uio_in),   // IOs: Input path
-      .uio_out(uio_out),  // IOs: Output path
-      .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
-      .ena    (ena),      // enable - goes high when design is selected
-      .clk    (clk),      // clock
-      .rst_n  (rst_n)     // not reset
-  );
+    // Stimulus generation
+    initial begin
+        // Initialization
+        rst = 1;
+        valid_in = 0;
+        data_in = 0;
+
+        // Reset deassertion
+        #20;
+        rst = 0;
+
+        // Test input data sequence
+        valid_in = 1;
+        data_in = 16'd1;  #10;
+        data_in = 16'd2;  #10;
+        data_in = 16'd3;  #10;
+        data_in = 16'd4;  #10;
+        data_in = 16'd5;  #10;
+        data_in = 16'd6;  #10;
+        data_in = 16'd7;  #10;
+        data_in = 16'd8;  #10;
+
+        // Wait for the filter to process the inputs
+        valid_in = 0;
+        #100;
+
+        // End simulation
+        $finish;
+    end
+
+    // Monitor output
+    initial begin
+        $monitor("Time: %0t | data_in: %d | data_out: %d | valid_out: %b", 
+                 $time, data_in, data_out, valid_out);
+    end
+
+    // Expected output checker
+    initial begin
+        #30;
+        // Add assertions to validate outputs
+        // For example: assert(data_out == expected_value)
+        // based on the known coefficients
+    end
 
 endmodule
+
