@@ -2,39 +2,57 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import cocotb
-from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
-
+from cocotb.triggers import RisingEdge
+from cocotb.regression import TestFactory
+import random
 
 @cocotb.test()
-async def test_project(dut):
-    dut._log.info("Start")
+async def test_fir_filter(dut):
+    """
+    Testbench for the FIR Filter module.
+    """
+    # Initialize signals
+    dut.clk <= 0
+    dut.rst <= 1
+    dut.valid_in <= 0
+    dut.data_in <= 0
 
-    # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, units="us")
-    cocotb.start_soon(clock.start())
+    # Reset the DUT
+    await cocotb.triggers.Timer(20, units="ns")
+    dut.rst <= 0
+    await cocotb.triggers.Timer(20, units="ns")
 
-    # Reset
-    dut._log.info("Reset")
-    dut.ena.value = 1
-    dut.ui_in.value = 0
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 10)
-    dut.rst_n.value = 1
+    # Input stimulus
+    input_sequence = [random.randint(0, 255) for _ in range(16)]
+    expected_outputs = []  # Replace with actual expected outputs based on your coefficients
 
-    dut._log.info("Test project behavior")
+    dut.valid_in <= 1
 
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
+    for value in input_sequence:
+        dut.data_in <= value
+        await RisingEdge(dut.clk)
+        expected_outputs.append(0)  # Populate with actual expected values
 
-    # Wait for one clock cycle to see the output values
-    await ClockCycles(dut.clk, 1)
+    dut.valid_in <= 0
 
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
+    # Wait for output to stabilize
+    for i, expected in enumerate(expected_outputs):
+        await RisingEdge(dut.clk)
+        if dut.valid_out.value:
+            assert dut.data_out.value == expected, f"Mismatch at index {i}: got {dut.data_out.value}, expected {expected}"
 
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+@cocotb.coroutine
+async def clock_gen(signal, period=10):
+    """
+    Clock generator for the testbench.
+    """
+    while True:
+        signal <= 0
+        await cocotb.triggers.Timer(period // 2, units="ns")
+        signal <= 1
+        await cocotb.triggers.Timer(period // 2, units="ns")
+
+# Setup clock
+@cocotb.test()
+async def setup_clock(dut):
+    cocotb.fork(clock_gen(dut.clk))
